@@ -1,0 +1,656 @@
+/* THIS IS THE TEMPLATE FOR Parser.jj and ParserAST.jj. PLEASE FILL IN AT LEAST
+ * ALL INSTANCES OF THE COMMENT "FILLIN", AND REMOVE THIS HEADER COMMENT. */
+
+// This is ParserAST
+
+options {
+	JAVA_UNICODE_ESCAPE = true;
+	STATIC = false;
+}
+
+PARSER_BEGIN(ParserAST)
+	package edu.purdue.cs352.minijava.parser;
+	
+	import java.util.*;
+	import edu.purdue.cs352.minijava.*;
+	import edu.purdue.cs352.minijava.ast.*;
+	
+	public class ParserAST {
+		/*
+		public static void main(String[] args) {
+			ParserAST parser;
+			Program program;
+
+			if (args.length != 1) {
+				System.out.println("Use: mjparse <input file>");
+				return;
+			}
+
+			try {
+				parser = new ParserAST(new java.io.FileInputStream(args[0]));
+			} catch (java.io.FileNotFoundException ex) {
+				System.out.println("File " + args[0] + " not found.");
+				return;
+			}
+			
+			try {
+				program = parser.Program();
+				ASTToSExp visitor = new ASTToSExp();
+				System.out.println(program.accept(visitor));
+				
+			} catch (ParseException ex) {
+				System.out.println(ex.getMessage());
+				return;
+			}
+		}*/
+	}
+PARSER_END(ParserAST)
+
+
+// Lexical definitions --------------------------------------------------------
+
+SKIP :
+{
+    <" "> | <"\t"> | <"\n"> | <"\f"> | <"\r">
+}
+
+// Comments
+SKIP :
+{
+    < "//" (~["\n"])* "\n" >
+|   < "/*" ( ~["*"] | ("*")+ ~["*","/"] )* ("*")+ "/" >
+}
+
+// MiniJava keywords
+TOKEN :
+{
+    < KW_CLASS: "class" >
+|	< KW_PUBLIC: "public" >
+|	< KW_STATIC: "static" >
+|	< KW_VOID: "void" >
+|	< KW_MAIN: "main" >
+|	< KW_STRING: "String" >
+|	< KW_EXTENDS: "extends" >
+|	< KW_RETURN: "return" >
+|	< KW_INT: "int" >
+|	< KW_BOOLEAN: "boolean" >
+|	< KW_IF: "if" >
+|	< KW_ELSE: "else" >
+|	< KW_WHILE: "while" >
+|	< KW_TRUE: "true" >
+|	< KW_FALSE: "false" >
+|	< KW_THIS: "this" >
+|	< KW_NEW: "new" >
+|	< KW_PRINT: "System.out.println" >
+}
+
+// MiniJava symbols
+TOKEN :
+{
+    < SYM_LBRACE: "{" >
+|	< SYM_RBRACE: "}" >
+|	< SYM_LPAREN: "(" >
+|	< SYM_RPAREN: ")" >
+|	< SYM_LSQPAREN: "[" >
+|	< SYM_RSQPAREN: "]" >
+|	< SYM_SEMICOLON: ";" >
+|	< SYM_EQUAL: "=" >
+|	< SYM_AMPAMP: "&&" >
+|	< SYM_BARBAR: "||" >
+|	< SYM_LESS: "<" >
+|	< SYM_LESSEQUAL: "<=" >
+|	< SYM_EQUALEQUAL: "==" >
+|	< SYM_EXCLEQUAL: "!=" >
+|	< SYM_MORE: ">" >
+|	< SYM_MOREEQUAL: ">=" >
+|	< SYM_PLUS: "+" >
+|	< SYM_MINUS: "-" >
+|	< SYM_STAR: "*" >
+|	< SYM_SLASH: "/" >
+|	< SYM_PERCENT: "%" >
+|	< SYM_EXCL: "!" >
+|	< SYM_DOT: "." >
+|	< SYM_COMMA: "," >
+}
+
+// Identifiers
+TOKEN :
+{
+	< IDENTIFIER: ["_","a"-"z","A"-"Z"](["_","a"-"z","A"-"Z","0"-"9"])* >
+}
+
+// Integer literals
+TOKEN :
+{
+	< INT_LITERAL: (["0"-"9"])+ >
+}
+
+
+
+// Grammar --------------------------------------------------------------------
+
+Program Program():
+{
+	Main main;
+	ClassDecl cd;
+	List<ClassDecl> cds = new ArrayList<ClassDecl>();
+	//System.out.println("Program()");
+}
+{
+	( main = MainClass() )
+	( cd = ClassDeclaration() { cds.add(cd); } )*
+	<EOF>
+	
+	{ return new Program(token, main, cds); }	// variable 'token' is last token consumed by parser
+}
+
+
+Main MainClass():
+{
+	Statement body;
+	//System.out.println("MainClass()");
+}
+{
+	/*class MyClass {
+		public static void main(String[] myArgs){
+			... ...
+		}
+	}*/
+	<KW_CLASS> Identifier() <SYM_LBRACE>
+		<KW_PUBLIC> <KW_STATIC> <KW_VOID> <KW_MAIN> <SYM_LPAREN> <KW_STRING> <SYM_LSQPAREN> <SYM_RSQPAREN> Identifier() <SYM_RPAREN> <SYM_LBRACE>
+			( body = Statement() )
+		<SYM_RBRACE>
+	<SYM_RBRACE>
+	
+	{ return new Main(token, body); }
+}
+
+
+ClassDecl ClassDeclaration():
+{
+	String name;
+	String xtends = null;
+	List<VarDecl> fields = new ArrayList<VarDecl>();
+	List<MethodDecl> methods = new ArrayList<MethodDecl>();
+	
+	VarDecl field;
+	MethodDecl method;
+	//System.out.println("ClassDeclaration()");
+}
+{
+	/*class MyClass extends MySuperclass {
+		... ...
+	}*/
+	<KW_CLASS> ( name = Identifier() ) (<KW_EXTENDS> ( xtends = Identifier() ))? <SYM_LBRACE>
+		( field = VarDeclaration() { fields.add(field); } )*
+		( method = MethodDeclaration() { methods.add(method); } )*
+	<SYM_RBRACE>
+	
+	{ return new ClassDecl(token, name, xtends, fields, methods); }
+}
+
+
+VarDecl VarDeclaration():
+{
+	Type type;
+	String name;
+	//System.out.println("VarDeclaration()");
+}
+{
+	// int a;
+	( type = Type() )
+	( name = Identifier() )
+	<SYM_SEMICOLON>
+	
+	{ return new VarDecl(token, type, name); }
+}
+
+
+MethodDecl MethodDeclaration():
+{
+	Type retType;
+	String name;
+	List<Parameter> parameters = new ArrayList<Parameter>();
+	List<VarDecl> vds = new ArrayList<VarDecl>();
+	List<Statement> body = new ArrayList<Statement>();
+	Exp retExp;
+	
+	Type paramType;
+	String paramName;
+	VarDecl vd;
+	Statement statement;
+	
+	//System.out.println("MethodDeclaration()");
+}
+{
+	/* public int MyMethod(int a, boolean b) {
+		... ...
+		return c;
+	}*/
+	<KW_PUBLIC> ( retType = Type() ) ( name = Identifier() ) <SYM_LPAREN>
+	(
+		( paramType = Type() ) ( paramName = Identifier() )
+		{ parameters.add(new Parameter(token, paramType, paramName)); }
+	 	(
+	 		<SYM_COMMA> ( paramType = Type() ) ( paramName = Identifier() )
+	 		{ parameters.add(new Parameter(token, paramType, paramName)); }
+	 	)* 
+	 )?
+	<SYM_RPAREN> <SYM_LBRACE>
+		
+		( LOOKAHEAD(2) vd = VarDeclaration() { vds.add(vd); } )*
+		( statement = Statement() { body.add(statement); } )*
+		<KW_RETURN> ( retExp = Expression() ) <SYM_SEMICOLON>
+	
+	<SYM_RBRACE>
+	
+	{ return new MethodDecl(token, retType, name, parameters, vds, body, retExp); }
+}
+
+
+Type Type():
+{
+	Type ret;
+	String name;
+	//System.out.println("Type()");
+}
+{
+	(
+		// int | int[] | boolean | MyClass
+		( <KW_INT> { ret = new TypeInt(token); } 
+		(<SYM_LSQPAREN> <SYM_RSQPAREN> { ret = new TypeIntArray(token); })? )
+	|	( <KW_BOOLEAN> { ret = new TypeBoolean(token); } )
+	|	( ( name = Identifier() ) { ret = new Type(token, name); } )
+	)
+	
+	{ return ret; }
+}
+
+
+Statement Statement():
+{
+	Statement ret;
+	
+	List<Statement> body = new ArrayList<Statement>();
+	Statement bodyStatement;
+	
+	Exp condition;
+	Statement ifPart;
+	Statement elsePart = null;
+	
+	Exp value;
+	
+	Exp exp;
+	
+	//System.out.println("Statement()");
+}
+{
+	(
+		// block statement
+		(
+			{//System.out.println("	block statement");
+			}
+			<SYM_LBRACE> 
+			( bodyStatement = Statement() { body.add(bodyStatement); } )*
+			<SYM_RBRACE> 
+			{ ret = new BlockStatement(token, body); } 
+		)
+		// if statement
+	|	(
+			{//System.out.println("	if statement");
+			}
+			<KW_IF> <SYM_LPAREN> ( condition = Expression() ) <SYM_RPAREN> 
+			( ifPart = Statement() ) 
+			(LOOKAHEAD(1) <KW_ELSE> ( elsePart = Statement() ))?
+			{ ret = new IfStatement(token, condition, ifPart, elsePart); }
+		)
+		// while statement
+	|	(
+			{//System.out.println("	while statement");
+			}
+			<KW_WHILE> <SYM_LPAREN> ( condition = Expression() ) <SYM_RPAREN> 
+			( bodyStatement = Statement() )
+			{ ret = new WhileStatement(token, condition, bodyStatement); }
+		)
+		// print statement
+	|	(
+			{//System.out.println("	print statement");
+			}
+			<KW_PRINT> <SYM_LPAREN> ( value = Expression() ) <SYM_RPAREN> <SYM_SEMICOLON>
+			{ ret = new PrintStatement(token, value); }
+		)
+		// exp statement	
+	|	(
+			{//System.out.println("	exp statement");
+			}
+			( exp = Expression() ) <SYM_SEMICOLON>
+			{ ret = new ExpStatement(token, exp); }
+		)
+	)
+
+	{ return ret; }
+}
+
+
+Exp Expression():
+{
+	Exp ret;
+	//System.out.println("Expression()");
+}
+{
+	( ret = AssignExpr() )
+	{ return ret; }
+}
+
+
+Exp AssignExpr():
+{
+	Exp ret;
+
+	Exp value = null;
+	//System.out.println("AssignExpr()");
+}
+{
+	( ret = LogicOp() ) 
+	( <SYM_EQUAL> ( value = AssignExpr() ) { ret = new AssignExp(token, ret, value); } )?
+	
+	{ return ret; }
+}
+
+// CmpOp || CmpOp && CmpOp && CmpOp ... left-binding
+Exp LogicOp():
+{
+	Exp ret;
+	BinaryExp postfix;
+	//System.out.println("LogicOp()");
+}
+{
+	( ret = CmpOp() )
+	(
+		( postfix = LogicOp_postfix() )
+		{ postfix.setLeft(ret);  ret = postfix; }
+	)*
+	
+	{ return ret; }
+}
+BinaryExp LogicOp_postfix():
+{
+	Token op;
+	Exp right;
+	//System.out.println("LogicOp_postfix()");
+}
+{
+	(<SYM_AMPAMP>|<SYM_BARBAR>)
+	{ op = token; }
+	( right = CmpOp() )
+	
+	{ return new BinaryExp(null, op, right); }
+}
+
+
+// AddOp < AddOp == AddOp != AddOp >= AddOp ... left-binding
+Exp CmpOp():
+{
+	Exp ret;
+	BinaryExp postfix;
+	//System.out.println("CmpOp()");
+}
+{
+	( ret = AddOp() )
+	(
+		( postfix = CmpOp_postfix() )
+		{ postfix.setLeft(ret);  ret = postfix; }
+	)*
+	
+	{ return ret; }
+}
+BinaryExp CmpOp_postfix():
+{
+	Token op;
+	Exp right;
+	//System.out.println("CmpOp_postfix()");
+}
+{
+	(<SYM_LESS>|<SYM_LESSEQUAL>|<SYM_EQUALEQUAL>|<SYM_EXCLEQUAL>|<SYM_MORE>|<SYM_MOREEQUAL>)
+	{ op =  token; }
+	( right = AddOp() )
+	
+	{ return new BinaryExp(null, op, right); }
+}
+
+
+// MulOp + MulOp - MulOp ... left-binding 
+Exp AddOp():
+{
+	Exp ret;
+	BinaryExp postfix;
+	//System.out.println("AddOp()");
+}
+{
+	( ret = MulOp() )
+	(
+		( postfix = AddOp_postfix() )
+		{ postfix.setLeft(ret);  ret = postfix; }
+	)*
+	
+	{ return ret; }
+}
+BinaryExp AddOp_postfix():
+{
+	Token op;
+	Exp right;
+	//System.out.println("AddOp_postfix()");
+}
+{
+	(<SYM_PLUS>|<SYM_MINUS>)
+	{ op = token; }
+	( right = MulOp() )
+	
+	{ return new BinaryExp(null, op, right); }
+}
+
+
+// UnaryOp * UnaryOp / UnaryOp % UnaryOp ... left-binding
+Exp MulOp():
+{
+	Exp ret;
+	BinaryExp postfix;
+	//System.out.println("MulOp()");
+}
+{
+	( ret = UnaryOp() )
+	(
+		( postfix = MulOp_postfix() )
+		{ postfix.setLeft(ret);  ret = postfix; }
+	)*
+	
+	{ return ret; }
+}
+BinaryExp MulOp_postfix():
+{
+	Token op;
+	Exp right;
+	//System.out.println("MulOp_postfix()");
+}
+{
+	(<SYM_STAR>|<SYM_SLASH>|<SYM_PERCENT>)
+	{ op = token; }
+	( right = UnaryOp() )
+	
+	{ return new BinaryExp(null, op, right); }
+}
+
+
+// !!!!...PostfixOp
+Exp UnaryOp():
+{
+	Exp ret;
+	Exp sub;
+	//System.out.println("UnaryOp()");
+}
+{
+	(
+		(
+			{//System.out.println("	not exp");
+			}
+			<SYM_EXCL> ( sub = UnaryOp() )
+			{ ret = new NotExp(token, sub); }
+		)
+	|	(
+			{//System.out.println("	postfix op");
+			}
+			ret = PostfixOp()
+		)
+	)
+	
+	{ return ret; }
+}
+
+
+// PrimaryExp[Exp][Exp][Exp]...
+// PrimaryExp.method1().method2(Exp, Exp, Exp).method3(Exp) ...
+// PrimaryExp.field1.field2.field3 ...
+Exp PostfixOp():
+{
+	Exp ret;
+	
+	IndexExp indexPostfix;
+	MemberExp memberPostfix;
+	CallExp callPostfix;
+	
+	//System.out.println("PostfixOp()");
+}
+{
+	( ret = PrimaryExp() )
+	(
+		(
+			{//System.out.println("	index exp");
+			}
+			( indexPostfix = PostfixOp_indexPostfix() )
+			{ indexPostfix.setTarget(ret);  ret = indexPostfix; }
+		)
+	|	(
+			// put callPostfix in front of memberPostfix;
+			// ".identifier" is subset of ".identifier(arg,arg)"
+			LOOKAHEAD(3)
+			(
+				{//System.out.println("	call exp");
+				}
+				( callPostfix = PostfixOp_callPostfix() )
+				{ callPostfix.setTarget(ret);  ret = callPostfix; }
+			)
+		|	(
+				{//System.out.println("	member exp");
+				}
+				( memberPostfix = PostfixOp_memberPostfix() )
+				{ memberPostfix.setSub(ret);  ret = memberPostfix; }
+			)
+		)
+	)*
+	
+	{ return ret; }
+}
+IndexExp PostfixOp_indexPostfix():
+{
+	Exp index;
+	//System.out.println("PostfixOp_indexPostfix()");
+}
+{
+	<SYM_LSQPAREN> ( index = Expression() ) <SYM_RSQPAREN>
+	
+	{ return new IndexExp(token, null, index); }
+}
+CallExp PostfixOp_callPostfix():
+{
+	String method;
+	List<Exp> arguments = new ArrayList<Exp>();
+	Exp arg;
+	//System.out.println("PostfixOp_callPostFix()");
+}
+{
+	<SYM_DOT> ( method = Identifier() )
+	<SYM_LPAREN>
+		(
+			( arg = Expression() ) { arguments.add(arg); }
+			( <SYM_COMMA> ( arg = Expression() ) { arguments.add(arg); } )*
+		)?
+	<SYM_RPAREN>
+	
+	{//System.out.print("."+method+"()"); 
+	return new CallExp(token, null, method, arguments); }
+}
+MemberExp PostfixOp_memberPostfix():
+{
+	String member;
+	//System.out.println("PostfixOp_memberPostfix()");
+}
+{
+	<SYM_DOT> ( member = Identifier() )
+	
+	{ return new MemberExp(token, null, member); }
+}
+
+
+
+
+
+
+Exp PrimaryExp():
+{
+	Exp ret;
+	
+	Exp size;
+	String name;
+	//System.out.println("PrimaryExp()");
+}
+{
+	(
+		(
+			<INT_LITERAL>
+			{ ret = new IntLiteralExp(token, Integer.parseInt(token.image)); }
+		)
+	|   (
+			<KW_TRUE>
+			{ ret = new BooleanLiteralExp(token, true); }
+		)
+	|	(
+			<KW_FALSE>
+			{ ret = new BooleanLiteralExp(token, false); }
+		)
+	|	(
+			Identifier()
+			{ ret = new VarExp(token, token.image); }
+		)
+	|	(
+			<KW_THIS>
+			{ ret = new ThisExp(token); }
+		)
+	|	(
+			<KW_NEW> ( 
+				(
+					<KW_INT> <SYM_LSQPAREN> ( size = Expression() ) <SYM_RSQPAREN>
+					{ ret = new NewIntArrayExp(token, size); }
+				)
+			| 	(
+					( name = Identifier() ) <SYM_LPAREN> <SYM_RPAREN>
+					{ ret = new NewObjectExp(token, name); }
+				)
+			)
+		)
+	|	(
+			<SYM_LPAREN> ( ret = Expression() ) <SYM_RPAREN>
+		)
+	)
+		
+	{ return ret; }
+}
+
+
+String Identifier():
+{
+	//System.out.println("Identifier()");
+}
+{
+	<IDENTIFIER>
+	{ return token.image; }
+}
