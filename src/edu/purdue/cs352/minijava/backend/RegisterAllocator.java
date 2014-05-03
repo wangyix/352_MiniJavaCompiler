@@ -455,7 +455,7 @@ public class RegisterAllocator {
 		
 		Set<TempNode> noRegisterNodes = new HashSet<TempNode>();
 		Set<TempNode> pinnedNodes = new HashSet<TempNode>();
-		Set<TempNode> nonSpillNodes = new HashSet<TempNode>();
+		Stack<TempNode> nonSpillNodes = new Stack<TempNode>();
 		Set<TempNode> potentialSpillNodes = new HashSet<TempNode>();
 		
 		int nodesRemaining = tempnodes.size();
@@ -488,7 +488,7 @@ public class RegisterAllocator {
 					for (TempNode adjNode : node.adj){
 						adjNode.degree--;
 					}
-					nonSpillNodes.add(node);
+					nonSpillNodes.push(node);
 					nonSpillNodeFound = true;
 					break;
 				}
@@ -535,7 +535,11 @@ public class RegisterAllocator {
 		Set<Integer> adjColors = new HashSet<Integer>();
 		
 		// add nonspill nodes back, assigning colors to each
-		for (TempNode node : nonSpillNodes) {
+		//for (TempNode node : nonSpillNodes) {
+		while (!nonSpillNodes.isEmpty()) {
+			
+			TempNode node = nonSpillNodes.pop();
+			
 			// set this node's color to the lowest value that's not the color
 			// of any of its adjacent nodes
 			adjColors.clear();
